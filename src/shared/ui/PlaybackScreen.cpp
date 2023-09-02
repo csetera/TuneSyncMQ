@@ -13,11 +13,17 @@
  * @param parent
  */
 void PlaybackScreen::addCoverImage(lv_obj_t *parent) {
+	// Place the image into a container to avoid the mosaic
+	// feature for smaller images
+	lv_obj_t *container = createLayoutContainer(parent);
+	lv_obj_align(container, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_set_size(container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+
 	LV_IMG_DECLARE(logo);
-	coverImage = lv_img_create(parent);
+	coverImage = lv_img_create(container);
 	lv_img_set_src(coverImage, &logo);
 	lv_obj_align(coverImage, LV_ALIGN_CENTER, 0, 0);
-	lv_obj_set_size(coverImage, lv_pct(100), 192);
+	lv_obj_set_size(coverImage, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
 	lv_obj_set_style_radius(coverImage, 10, 0);
 	lv_obj_set_style_clip_corner(coverImage, true, LV_PART_MAIN);
 }
