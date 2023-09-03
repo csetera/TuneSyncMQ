@@ -94,6 +94,78 @@ NetworkManager::NetworkManager() : webServer(80), wsSerial("/ws_serial"), state(
 }
 
 /**
+ * @brief Setup for OTA updates
+ */
+void NetworkManager::configureOTAUpdates() {
+    Logger::get().println("Configuring OTA Updates");
+
+    ArduinoOTA.setHostname(MDNS_NAME);
+    ArduinoOTA.setPassword(OTA_PASSWORD);
+
+    ArduinoOTA.onStart([this]() {
+        lastLoggedOtaPercentage = -1.0;
+        const char *message = (ArduinoOTA.getCommand() == 0) ?
+            "OTA firmware update starting" :
+            "OTA filesystem update starting";
+
+        Logger::get().println(message);
+        DisplayManager::get().startProgress(false);
+        updateProgress(0, message);
+        DisplayManager::get().refreshDisplay();
+    });
+
+    ArduinoOTA.onEnd([]() {
+        Logger::get().println("OTA Complete");
+        DisplayManager::get().completeProgress();
+        DisplayManager::get().refreshDisplay();
+    });
+
+    ArduinoOTA.onProgress([this](unsigned int progress, unsigned int total) {
+        char buffer[30];
+
+        uint percent_complete = (uint) ((double) progress / ((double) total / 100));
+        if ((percent_complete % 10) == 0) {
+            if (percent_complete > lastLoggedOtaPercentage) {
+                lastLoggedOtaPercentage = percent_complete;
+                sprintf(buffer, "OTA Progress: %u%%", percent_complete);
+                Logger::get().println(buffer);
+                updateProgress(percent_complete, buffer);
+                DisplayManager::get().refreshDisplay();
+            }
+        }
+    });
+
+    ArduinoOTA.onError([](ota_error_t error) {
+        switch (error) {
+            case OTA_AUTH_ERROR:
+                Logger::get().println("OTA - Auth failed\n");
+                break;
+
+            case OTA_BEGIN_ERROR:
+                Logger::get().println("OTA - Begin failed");
+                break;
+
+            case OTA_CONNECT_ERROR:
+                Logger::get().println("OTA - Connect failed");
+                break;
+
+            case OTA_RECEIVE_ERROR:
+                Logger::get().println("OTA - Receive failed");
+                break;
+
+            case OTA_END_ERROR:
+                Logger::get().println("OTA - End failed");
+                break;
+
+            default:
+                Logger::get().printf("OTA - Unknown OTA error: %u\n", error);
+        }
+    });
+
+    Logger::get().println("OTA configured");
+}
+
+/**
  * Check if the network is connected.
  *
  * @return true if the network is connected, false otherwise.
@@ -122,7 +194,7 @@ void NetworkManager::start() {
     mqttClient.setClient(wifiClient);
     mqttClient.setServer(MQTT_HOST, 1883);
     mqttClient.setCallback([this](char* topic, byte* payload, unsigned int length) {
-        this->mqttMessageCallback(topic, payload, length);
+      this->mqttMessageCallback(topic, payload, length);
     });
 
 		configuredViaSmartConfig = false;
@@ -355,13 +427,14 @@ void NetworkManager::getSettings(AsyncWebServerRequest *request) {
  * @param length
  */
 void NetworkManager::mqttMessageCallback(char* topic, byte* payload, unsigned int length) {
-    Logger::get().print("Message arrived [");
-    Logger::get().print(topic);
-    Logger::get().print("] ");
-    for (int i = 0; i < length; i++) {
-        Logger::get().print((char)payload[i]);
-    }
-    Logger::get().println();
+	String key(topic);
+
+	auto handler = mqttMessageHandlers[key];
+	if (handler != nullptr) {
+		handler(topic, payload, length);
+	} else {
+		Logger::get().printf("Unknown topic: %s\n", topic);
+	}
 }
 
 /**
@@ -370,22 +443,39 @@ void NetworkManager::mqttMessageCallback(char* topic, byte* payload, unsigned in
  * @return boolean
  */
 boolean NetworkManager::mqttReconnect() {
-    Logger::get().println("Connecting MQTT");
-    if (mqttClient.connect(hostname.c_str(), MQTT_USER, MQTT_PASS)) {
-        Logger::get().println("Connected to MQTT broker");
-        mqttClient.publish("tunesyncmq/controllers", hostname.c_str());
-    } else {
-        Logger::get().println("Failed to connect to MQTT broker");
-    }
+	Logger::get().println("Connecting MQTT");
+	if (mqttClient.connect(hostname.c_str(), MQTT_USER, MQTT_PASS)) {
+			Logger::get().println("Connected to MQTT broker");
+			mqttClient.publish("tunesyncmq/controllers", hostname.c_str());
 
-    return mqttClient.connected();
+			// Subscribe as necessary
+			for (auto key : mqttMessageHandlers.keys) {
+				mqttClient.subscribe(key.c_str());
+			}
+	} else {
+			Logger::get().println("Failed to connect to MQTT broker");
+	}
+
+	return mqttClient.connected();
+}
+
+/**
+ * Sets the MQTTMessageHandler for the given topic.
+ *
+ * @param topic the topic to set the handler for
+ * @param handler the MQTTMessageHandler to set for the topic
+ *
+ * @throws ErrorType if an error occurs while setting the handler
+ */
+void NetworkManager::onTopicMessageReceived(String topic, MQTTMessageHandler handler) {
+	mqttMessageHandlers[topic] = handler;
 }
 
 /**
  * @brief Handler for Wifi connected events
  */
 void NetworkManager::onWifiConnected() {
-    Serial.println("onWifiConnected");
+    Serial.println("onWifiConnected called");
 
     Logger &logger = Logger::get();
     logger.publishTo(&wsSerial);
@@ -437,13 +527,16 @@ void NetworkManager::onWifiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
 }
 
 /**
- * Publishes a music control command to the MQTT broker
+ * Publishes the given message to the specified MQTT topic.
  *
- * @param command a pointer to a character array representing the command to be sent
+ * @param topic The MQTT topic to publish to.
+ * @param message The message to publish.
+ *
+ * @throws None
  */
-void NetworkManager::publishCommand(const char *command) {
+void NetworkManager::publishToMQTT(const char *topic, const char *message) {
 	if (mqttClient.connected()) {
-		mqttClient.publish(TUNESYNCMQ_COMMAND, command);
+		mqttClient.publish(topic, message);
 	}
 }
 
@@ -486,79 +579,6 @@ void NetworkManager::registerHandlers() {
         request->send(404);
     });
 }
-
-/**
- * @brief Setup for OTA updates
- */
-void NetworkManager::configureOTAUpdates() {
-    Logger::get().println("Configuring OTA Updates");
-
-    ArduinoOTA.setHostname(MDNS_NAME);
-    ArduinoOTA.setPassword(OTA_PASSWORD);
-
-    ArduinoOTA.onStart([this]() {
-        lastLoggedOtaPercentage = -1.0;
-        const char *message = (ArduinoOTA.getCommand() == 0) ?
-            "OTA firmware update starting" :
-            "OTA filesystem update starting";
-
-        Logger::get().println(message);
-        DisplayManager::get().startProgress(false);
-        updateProgress(0, message);
-        DisplayManager::get().refreshDisplay();
-    });
-
-    ArduinoOTA.onEnd([]() {
-        Logger::get().println("OTA Complete");
-        DisplayManager::get().completeProgress();
-        DisplayManager::get().refreshDisplay();
-    });
-
-    ArduinoOTA.onProgress([this](unsigned int progress, unsigned int total) {
-        char buffer[30];
-
-        uint percent_complete = (uint) ((double) progress / ((double) total / 100));
-        if ((percent_complete % 10) == 0) {
-            if (percent_complete > lastLoggedOtaPercentage) {
-                lastLoggedOtaPercentage = percent_complete;
-                sprintf(buffer, "OTA Progress: %u%%", percent_complete);
-                Logger::get().println(buffer);
-                updateProgress(percent_complete, buffer);
-                DisplayManager::get().refreshDisplay();
-            }
-        }
-    });
-
-    ArduinoOTA.onError([](ota_error_t error) {
-        switch (error) {
-            case OTA_AUTH_ERROR:
-                Logger::get().println("OTA - Auth failed\n");
-                break;
-
-            case OTA_BEGIN_ERROR:
-                Logger::get().println("OTA - Begin failed");
-                break;
-
-            case OTA_CONNECT_ERROR:
-                Logger::get().println("OTA - Connect failed");
-                break;
-
-            case OTA_RECEIVE_ERROR:
-                Logger::get().println("OTA - Receive failed");
-                break;
-
-            case OTA_END_ERROR:
-                Logger::get().println("OTA - End failed");
-                break;
-
-            default:
-                Logger::get().printf("OTA - Unknown OTA error: %u\n", error);
-        }
-    });
-
-    Logger::get().println("OTA configured");
-}
-
 
 /**
  * Updates the progress displayed on the screen.

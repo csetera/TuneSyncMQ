@@ -11,23 +11,26 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <Esp.h>
+#define __ESP32__
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
+#define __ESP__
 #endif
 
 #include <AsyncJson.h>
 #include <DNSServer.h>
 #include <ESPAsyncWebServer.h>
 #include <PubSubClient.h>
+#include <ustd_map.h>
+
+typedef std::function<void(char* topic, byte* payload, unsigned int length)> MQTTMessageHandler;
 
 /**
  * @brief Separate the network management functionality
  */
 class NetworkManager {
 public:
-		static constexpr char *TUNESYNCMQ_COMMAND = "tunesyncmq/command";
-
     NetworkManager();
 
     /**
@@ -51,10 +54,12 @@ public:
         return webServer;
     }
 
-		void publishCommand(const char *command);
+		void publishToMQTT(const char *topic, const char *message);
+
+		void onTopicMessageReceived(String topic, MQTTMessageHandler handler);
 
 private:
-    static const long   maxConnectionWaitMillis = 30 * 1000;
+    static const long maxConnectionWaitMillis = 30 * 1000;
 
     enum NetworkState {
         BEFORE_START,
@@ -64,24 +69,18 @@ private:
         DISCONNECTED
     };
 
+		// Base functioality support
 		String                          hostname;
     NetworkState                    state;
     unsigned long                   beginWaitMillis;
     bool                            configuredViaSmartConfig;
-    double                          lastLoggedOtaPercentage;
-		long 														lastMqttReconnectAttempt;
-
     AsyncCallbackJsonWebHandler*    updateSettingsHandler;
     AsyncWebServer                  webServer;
     AsyncWebSocket                  wsSerial;
-    PubSubClient 										mqttClient;
 		WiFiClient 											wifiClient;
 
-    void configureOTAUpdates();
     void getInfo(AsyncWebServerRequest *request, bool featuresOnly = false);
     void getSettings(AsyncWebServerRequest *request);
-    void mqttMessageCallback(char* topic, byte* payload, unsigned int length);
-    boolean mqttReconnect();
     void onWifiConnected();
     void onWifiDisconnected();
     void onWifiEvent(WiFiEvent_t event, WiFiEventInfo_t info);
@@ -89,4 +88,17 @@ private:
     void startSmartConfig();
     bool startWifi();
     void updateProgress(int percent, const char *message);
+
+		// MQTT support
+		long 														lastMqttReconnectAttempt;
+    PubSubClient 										mqttClient;
+		ustd::map<String, MQTTMessageHandler> 	mqttMessageHandlers;
+
+    void mqttMessageCallback(char* topic, byte* payload, unsigned int length);
+    boolean mqttReconnect();
+
+		// OTA support
+    double                          lastLoggedOtaPercentage;
+
+    void configureOTAUpdates();
 };

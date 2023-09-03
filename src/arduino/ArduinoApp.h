@@ -17,8 +17,13 @@ public:
     virtual void loop();
 
 private:
+		static constexpr char *TUNESYNCMQ_COMMAND = "tunesyncmq/command";
+
     NetworkManager networkManager;
 		PlaybackScreen playbackScreen;
+
+		void albumArtUpdated(byte *payload, unsigned int length);
+		void playbackStatusUpdated(byte *payload, unsigned int length);
 
 		virtual void beforeLvglInit();
     virtual void afterLvglInit();
