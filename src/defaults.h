@@ -28,5 +28,5 @@
 #endif
 
 #ifndef MDNS_NAME
-  #define MDNS_NAME "conductor"
+  #define MDNS_NAME "tunesyncmq"
 #endif

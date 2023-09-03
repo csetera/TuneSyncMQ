@@ -19,12 +19,15 @@
 #include <AsyncJson.h>
 #include <DNSServer.h>
 #include <ESPAsyncWebServer.h>
+#include <PubSubClient.h>
 
 /**
  * @brief Separate the network management functionality
  */
 class NetworkManager {
 public:
+		static constexpr char *TUNESYNCMQ_COMMAND = "tunesyncmq/command";
+
     NetworkManager();
 
     /**
@@ -48,6 +51,8 @@ public:
         return webServer;
     }
 
+		void publishCommand(const char *command);
+
 private:
     static const long   maxConnectionWaitMillis = 30 * 1000;
 
@@ -59,18 +64,24 @@ private:
         DISCONNECTED
     };
 
+		String                          hostname;
     NetworkState                    state;
     unsigned long                   beginWaitMillis;
     bool                            configuredViaSmartConfig;
-
     double                          lastLoggedOtaPercentage;
+		long 														lastMqttReconnectAttempt;
+
     AsyncCallbackJsonWebHandler*    updateSettingsHandler;
     AsyncWebServer                  webServer;
     AsyncWebSocket                  wsSerial;
+    PubSubClient 										mqttClient;
+		WiFiClient 											wifiClient;
 
     void configureOTAUpdates();
     void getInfo(AsyncWebServerRequest *request, bool featuresOnly = false);
     void getSettings(AsyncWebServerRequest *request);
+    void mqttMessageCallback(char* topic, byte* payload, unsigned int length);
+    boolean mqttReconnect();
     void onWifiConnected();
     void onWifiDisconnected();
     void onWifiEvent(WiFiEvent_t event, WiFiEventInfo_t info);

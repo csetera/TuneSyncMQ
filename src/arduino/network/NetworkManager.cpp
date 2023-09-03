@@ -53,23 +53,23 @@ class CORSPreflightHandler : public AsyncWebHandler {
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
     switch (type) {
         case WS_EVT_CONNECT:
-            Serial.println("WS_EVT_CONNECT");
+            Logger::get().println("WS_EVT_CONNECT");
             break;
 
         case WS_EVT_DISCONNECT:
-            Serial.println("WS_EVT_DISCONNECT");
+            Logger::get().println("WS_EVT_DISCONNECT");
             break;
 
         case WS_EVT_PONG:
-            Serial.println("WS_EVT_PONG");
+            Logger::get().println("WS_EVT_PONG");
             break;
 
         case WS_EVT_ERROR:
-            Serial.println("WS_EVT_ERROR");
+            Logger::get().println("WS_EVT_ERROR");
             break;
 
         case WS_EVT_DATA:
-            Serial.println("WS_EVT_DATA");
+            Logger::get().println("WS_EVT_DATA");
             break;
     }
 }
@@ -86,7 +86,7 @@ NetworkManager::NetworkManager() : webServer(80), wsSerial("/ws_serial"), state(
     // Handler implementation for receiving settings updates and
     // passing them on to the SettingsManager.
     updateSettingsHandler = new AsyncCallbackJsonWebHandler("/api/settings", [this](AsyncWebServerRequest *request, JsonVariant &json) {
-        Serial.println("Received Settings update request");
+        Logger::get().println("Received Settings update request");
         JsonObject jsonObj = json.as<JsonObject>();
         SettingsManager::get().updateSettings(jsonObj);
         this->getSettings(request);
@@ -107,7 +107,7 @@ bool NetworkManager::isConnected() {
  */
 void NetworkManager::start() {
     // Calculate a unique hostname
-    auto hostname = String("conductor-");
+    hostname.concat("tunesyncmq-");
     hostname.concat(String((unsigned long)ESP.getEfuseMac(), HEX));
     WiFi.setHostname(hostname.c_str());
 
@@ -116,7 +116,16 @@ void NetworkManager::start() {
         this->onWifiEvent(event, info);
     });
 
-    configuredViaSmartConfig = false;
+    // Configure the MQTT client support
+    Logger::get().println("Configuring MQTT client");
+    lastMqttReconnectAttempt = 0;
+    mqttClient.setClient(wifiClient);
+    mqttClient.setServer(MQTT_HOST, 1883);
+    mqttClient.setCallback([this](char* topic, byte* payload, unsigned int length) {
+        this->mqttMessageCallback(topic, payload, length);
+    });
+
+		configuredViaSmartConfig = false;
     registerHandlers();
     configureOTAUpdates();
 
@@ -216,8 +225,23 @@ void NetworkManager::loop() {
             break;
 
         case CONNECTED:
-            ArduinoOTA.handle();
-            break;
+					if (mqttClient.connected()) {
+							mqttClient.loop();
+					} else {
+							long now = millis();
+
+							if (now - lastMqttReconnectAttempt > 5000) {
+									lastMqttReconnectAttempt = now;
+
+									// Attempt to reconnect
+									if (mqttReconnect()) {
+											lastMqttReconnectAttempt = 0;
+									}
+							}
+					}
+
+					ArduinoOTA.handle();
+					break;
 
         default:
             break;
@@ -323,6 +347,41 @@ void NetworkManager::getSettings(AsyncWebServerRequest *request) {
 }
 
 /**
+ * @brief Callback when a message is received for topics
+ * being watched
+ *
+ * @param topic
+ * @param payload
+ * @param length
+ */
+void NetworkManager::mqttMessageCallback(char* topic, byte* payload, unsigned int length) {
+    Logger::get().print("Message arrived [");
+    Logger::get().print(topic);
+    Logger::get().print("] ");
+    for (int i = 0; i < length; i++) {
+        Logger::get().print((char)payload[i]);
+    }
+    Logger::get().println();
+}
+
+/**
+ * @brief Callback method to reconnect MQTT
+ *
+ * @return boolean
+ */
+boolean NetworkManager::mqttReconnect() {
+    Logger::get().println("Connecting MQTT");
+    if (mqttClient.connect(hostname.c_str(), MQTT_USER, MQTT_PASS)) {
+        Logger::get().println("Connected to MQTT broker");
+        mqttClient.publish("tunesyncmq/controllers", hostname.c_str());
+    } else {
+        Logger::get().println("Failed to connect to MQTT broker");
+    }
+
+    return mqttClient.connected();
+}
+
+/**
  * @brief Handler for Wifi connected events
  */
 void NetworkManager::onWifiConnected() {
@@ -346,7 +405,7 @@ void NetworkManager::onWifiConnected() {
  * @brief Handler for Wifi disconnected events
  */
 void NetworkManager::onWifiDisconnected() {
-    Serial.println("onWifiDisconnected");
+    Logger::get().println("onWifiDisconnected");
 
     Logger &logger = Logger::get();
     logger.publishTo(nullptr);
@@ -375,6 +434,17 @@ void NetworkManager::onWifiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
             Logger::get().printf("Received Wifi Event: %d\n", event);
             break;
     }
+}
+
+/**
+ * Publishes a music control command to the MQTT broker
+ *
+ * @param command a pointer to a character array representing the command to be sent
+ */
+void NetworkManager::publishCommand(const char *command) {
+	if (mqttClient.connected()) {
+		mqttClient.publish(TUNESYNCMQ_COMMAND, command);
+	}
 }
 
 /**

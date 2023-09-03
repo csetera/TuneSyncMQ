@@ -41,15 +41,15 @@ void ArduinoApp::afterLvglInit() {
 
 	playbackScreen.createWidgets();
 	playbackScreen.onNextClick([&](lv_event_t *event) {
-		Logger::get().println("Next clicked");
+		this->networkManager.publishCommand("next");
 	});
 
 	playbackScreen.onPlayClick([&](lv_event_t *event) {
-		Logger::get().println("Play clicked");
+		this->networkManager.publishCommand("play");
 	});
 
 	playbackScreen.onPreviousClick([&](lv_event_t *event) {
-		Logger::get().println("Previous clicked");
+		this->networkManager.publishCommand("previous");
 	});
 
 	DisplayManager::get().setCurrentScreen(&playbackScreen);
