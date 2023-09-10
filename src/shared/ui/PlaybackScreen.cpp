@@ -6,6 +6,7 @@
  * You can obtain one at https://mozilla.org/MPL/2.0/.
  **********************************************************************************/
 #include "PlaybackScreen.h"
+#include <defaults.h>
 
 /**
  * @brief Add the album coverimage image to the parent.
@@ -17,7 +18,7 @@ void PlaybackScreen::addCoverImage(lv_obj_t *parent) {
 	// feature for smaller images
 	lv_obj_t *container = createLayoutContainer(parent);
 	lv_obj_align(container, LV_ALIGN_CENTER, 0, 0);
-	lv_obj_set_size(container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+	lv_obj_set_size(container, COVERIMAGE_WIDTH, COVERIMAGE_HEIGHT);
 
 	LV_IMG_DECLARE(logo);
 	coverImage = lv_img_create(container);

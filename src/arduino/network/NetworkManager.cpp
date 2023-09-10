@@ -191,6 +191,10 @@ void NetworkManager::start() {
     // Configure the MQTT client support
     Logger::get().println("Configuring MQTT client");
     lastMqttReconnectAttempt = 0;
+		if (!mqttClient.setBufferSize(MQTT_BUFFER_SIZE)) {
+			Logger::get().println("Failed to set MQTT buffer size");
+		}
+
     mqttClient.setClient(wifiClient);
     mqttClient.setServer(MQTT_HOST, 1883);
     mqttClient.setCallback([this](char* topic, byte* payload, unsigned int length) {

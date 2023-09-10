@@ -7,6 +7,16 @@
  **********************************************************************************/
 #pragma once
 
+// Communication related
+#ifndef MDNS_NAME
+  #define MDNS_NAME "tunesyncmq"
+#endif
+
+#ifndef MQTT_BUFFER_SIZE
+	#define MQTT_BUFFER_SIZE 32768
+#endif
+
+// Hardware related
 #ifndef LCD_BL
     #define LCD_BL 46
 #endif
@@ -27,6 +37,11 @@
     #define SCREEN_WIDTH 480
 #endif
 
-#ifndef MDNS_NAME
-  #define MDNS_NAME "tunesyncmq"
+// Application related
+#ifndef COVERIMAGE_HEIGHT
+	#define COVERIMAGE_HEIGHT 160
+#endif
+
+#ifndef COVERIMAGE_WIDTH
+	#define COVERIMAGE_WIDTH 160
 #endif

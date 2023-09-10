@@ -6,6 +6,7 @@
  * You can obtain one at https://mozilla.org/MPL/2.0/.
  **********************************************************************************/
 #include <Arduino.h>
+#include <InMemoryFS.h>
 #include <LittleFS.h>
 
 #include <arduino/ESP32Terminal/ESP32Terminal.h>
@@ -87,6 +88,16 @@ void ArduinoApp::afterLvglInit() {
  */
 void ArduinoApp::albumArtUpdated(byte *payload, unsigned int length) {
 	Logger::get().println("Album art update message received");
+	char filename[128];
+	unsigned long currentMillis = millis();
+	sprintf(filename, "%d.jpg", currentMillis);
+
+	Logger::get().printf("Registering album art as %s\n", filename);
+	InMemoryFS::registerFile(filename, payload, length);
+
+	sprintf(filename, "M:%d.jpg", currentMillis);
+	Logger::get().printf("Setting cover image to %s\n", filename);
+	playbackScreen.setCoverImage(filename);
 }
 
 /**
@@ -94,8 +105,7 @@ void ArduinoApp::albumArtUpdated(byte *payload, unsigned int length) {
  *
  * @return void
  */
-void ArduinoApp::beforeLvglInit()
-{
+void ArduinoApp::beforeLvglInit() {
     Serial.begin(115200);
     delay(500);
     Serial.println("Starting setup");
@@ -108,8 +118,7 @@ void ArduinoApp::beforeLvglInit()
     Utils::formatBuildTimestamp(build_timestamp);
     Serial.printf("Starting version built: %s\n", build_timestamp);
 
-    if (!LittleFS.begin(true))
-    {
+    if (!LittleFS.begin(true)) {
         Serial.println("An Error has occurred while mounting LittleFS");
         return;
     }
