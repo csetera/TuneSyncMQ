@@ -11,9 +11,40 @@
 #
 import importlib
 import io
+import math
+import struct
 import time
 Import("env")
 from pprint import pprint
+
+
+"""
+// 1 + 4 + 4 + 4 + 25 = 38 bytes header info
+struct AlbumArtHeader {
+	uint8_t 	type;
+	uint32_t	id;
+	uint32_t	crc;
+	uint32_t	totalDataSize;
+	char			filename[25];
+	uint8_t 	*data;
+};
+"""
+ALBUM_ART_HEADER_STRUCT_FORMAT = '!BIII25s'
+
+"""
+// 1 + 1 + 4 + 4 = 10 bytes chunk info
+struct AlbumArtChunk {
+	uint8_t 	type;
+	uint8_t 	chunk;
+	uint32_t	id;
+	uint32_t	offset;
+	uint8_t 	*data;
+};
+"""
+ALBUM_ART_CHUNK_STRUCT_FORMAT = '!BBII'
+
+MAX_PACKET_SIZE = 2 * 1024
+MAX_DATA_SIZE = MAX_PACKET_SIZE - 100 # Accounting for payload header length as well as protocol headers
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
@@ -56,10 +87,23 @@ def update_album_art(*args, **kwargs):
 
     jpegBytes = jpegBytesIO.getvalue()
     print("Publishing jpeg bytes with length: " + str(len(jpegBytes)))
-    client.publish("tunesyncmq/update/albumart", jpegBytes)
 
-    with open('/home/setera/temp/test.jpg', 'wb') as f:
-        f.write(jpegBytes)
+    chunkCount = math.ceil(len(jpegBytes) / MAX_DATA_SIZE)
+    print("Chunk count: " + str(chunkCount))
+
+    id = 456
+    crc = 789
+
+    for i in range(chunkCount):
+        offset = i * MAX_DATA_SIZE
+        dataChunk = jpegBytes[offset:offset+MAX_DATA_SIZE]
+
+        if (i == 0):
+            meta = struct.pack(ALBUM_ART_HEADER_STRUCT_FORMAT, 1, id, crc, len(jpegBytes), b'example.jpg')
+            client.publish("tunesyncmq/update/albumart", meta + dataChunk)
+        else:
+            meta = struct.pack(ALBUM_ART_CHUNK_STRUCT_FORMAT, 2, i, id, offset)
+            client.publish("tunesyncmq/update/albumart", meta + dataChunk)
 
     time.sleep(5)
     client.loop_stop()

@@ -9,6 +9,7 @@
 #include <InMemoryFS.h>
 #include <LittleFS.h>
 
+#include <arduino/albumart/AlbumArtManager.h>
 #include <arduino/ESP32Terminal/ESP32Terminal.h>
 #include <arduino/logging/Logger.h>
 #include <arduino/settings/SettingsManager.h>
@@ -69,7 +70,7 @@ void ArduinoApp::afterLvglInit() {
 	DisplayManager::get().setCurrentScreen(&playbackScreen);
 
 	networkManager.onTopicMessageReceived(ALBUM_ART_UPDATE_MESSAGE, [&](char* topic, byte* payload, unsigned int length) {
-		this->albumArtUpdated(payload, length);
+		AlbumArtManager::albumArtMessageReceived(payload, length);
 	});
 
 	networkManager.onTopicMessageReceived(STATUS_UPDATE_MESSAGE, [&](char* topic, byte* payload, unsigned int length) {
@@ -78,26 +79,6 @@ void ArduinoApp::afterLvglInit() {
 
 	networkManager.start();
   Logger::get().println("Setup done");
-}
-
-/**
- * @brief Handler for messages that update the album art.
- *
- * @param payload
- * @param length
- */
-void ArduinoApp::albumArtUpdated(byte *payload, unsigned int length) {
-	Logger::get().println("Album art update message received");
-	char filename[128];
-	unsigned long currentMillis = millis();
-	sprintf(filename, "%d.jpg", currentMillis);
-
-	Logger::get().printf("Registering album art as %s\n", filename);
-	InMemoryFS::registerFile(filename, payload, length);
-
-	sprintf(filename, "M:%d.jpg", currentMillis);
-	Logger::get().printf("Setting cover image to %s\n", filename);
-	playbackScreen.setCoverImage(filename);
 }
 
 /**

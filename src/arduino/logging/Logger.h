@@ -28,6 +28,8 @@ public:
     // Disable copy semantics
     Logger(const Logger&) = delete;
 
+		void hexDump(void *data, size_t count);
+
     /**
      * @brief Set the target WebSocket
      *

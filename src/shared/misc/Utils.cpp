@@ -18,3 +18,16 @@ void Utils::formatBuildTimestamp(char* buffer) {
     time_t timestamp = BUILD_TIMESTAMP;
     strftime(buffer, FORMATTED_BUILD_TIMESTAMP_LENGTH, "%Y-%m-%dT%H:%M:%SZ", localtime(&timestamp));
 }
+
+/**
+ * Reverses the byte order of a 32-bit unsigned integer.
+ *
+ * @param value The value to reverse the byte order of.
+ * @return The 32-bit unsigned integer with reversed byte order.
+ */
+uint32_t Utils::reverseByteOrder(uint32_t value) {
+	return ((value >> 24) & 0xFF) |
+           ((value >> 8) & 0xFF00) |
+           ((value << 8) & 0xFF0000) |
+           ((value << 24) & 0xFF000000);
+}

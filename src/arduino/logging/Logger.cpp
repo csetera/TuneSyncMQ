@@ -14,6 +14,31 @@ Logger& Logger::get() {
     return singleton;
 }
 
+/**
+ * Dumps the contents of a given memory block.
+ *
+ * @param data A pointer to the memory block.
+ * @param count The number of bytes to dump.
+ */
+void Logger::hexDump(void *data, size_t count) {
+	unsigned char *bytes = (unsigned char *)data;
+
+	for (size_t i = 0; i < count; i++) {
+			// Print the current byte as a hexadecimal value
+			printf("%02X ", bytes[i]);
+
+			// Print a new line after every 16 bytes
+			if ((i + 1) % 16 == 0) {
+					printf("\n");
+			}
+	}
+
+	// Print a new line at the end if necessary
+	if (count % 16 != 0) {
+			printf("\n");
+	}
+}
+
 Logger::Logger() {
     buffer.reserve(BUFFER_LENGTH);
 }

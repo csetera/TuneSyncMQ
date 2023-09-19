@@ -16,4 +16,6 @@ namespace Utils {
      * @param buffer
      */
     void formatBuildTimestamp(char* buffer);
+
+		uint32_t reverseByteOrder(uint32_t value);
 }

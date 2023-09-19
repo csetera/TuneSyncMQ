@@ -13,7 +13,7 @@
 #endif
 
 #ifndef MQTT_BUFFER_SIZE
-	#define MQTT_BUFFER_SIZE 32768
+	#define MQTT_BUFFER_SIZE (2 * 1024)
 #endif
 
 // Hardware related

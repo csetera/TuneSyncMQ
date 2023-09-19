@@ -11,20 +11,20 @@
 #include <shared/AppCommon.h>
 #include <shared/ui/PlaybackScreen.h>
 
-class ArduinoApp : public AppCommon {
+class ArduinoApp : public AppCommon
+{
 public:
-    ArduinoApp(): AppCommon() {}
-    virtual void loop();
+	ArduinoApp() : AppCommon() {}
+	virtual void loop();
 
 private:
-		static constexpr char *TUNESYNCMQ_COMMAND = "tunesyncmq/command";
+	static constexpr char *TUNESYNCMQ_COMMAND = "tunesyncmq/command";
 
-    NetworkManager networkManager;
-		PlaybackScreen playbackScreen;
+	NetworkManager networkManager;
+	PlaybackScreen playbackScreen;
 
-		void albumArtUpdated(byte *payload, unsigned int length);
-		void playbackStatusUpdated(byte *payload, unsigned int length);
+	void playbackStatusUpdated(byte *payload, unsigned int length);
 
-		virtual void beforeLvglInit();
-    virtual void afterLvglInit();
+	virtual void beforeLvglInit();
+	virtual void afterLvglInit();
 };
